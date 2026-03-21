@@ -11,7 +11,6 @@ import fs from "fs/promises"
 import { lazy } from "../util/lazy"
 import { NamedError } from "@opencode-ai/util/error"
 import { Flag } from "../flag/flag"
-import { Auth } from "../auth"
 import { Env } from "../env"
 import {
   type ParseError as JsoncParseError,
@@ -30,10 +29,12 @@ import { GlobalBus } from "@/bus/global"
 import { Event } from "../server/event"
 import { Glob } from "../util/glob"
 import { iife } from "@/util/iife"
-import { Account } from "@/account"
 import { ConfigPaths } from "./paths"
 import { Filesystem } from "@/util/filesystem"
 import { Npm } from "@/npm"
+
+import { Auth } from "../auth"
+import { Account } from "@/account"
 
 export namespace Config {
   const ModelId = z.string().meta({ $ref: "https://models.dev/model-schema.json#/$defs/Model" })
@@ -72,7 +73,7 @@ export namespace Config {
   }
 
   export const state = Instance.state(async () => {
-    const auth = await Auth.all()
+    const entries = await Auth.all()
 
     // Config loading order (low -> high precedence): https://opencode.ai/docs/config#precedence-order
     // 1) Remote .well-known/opencode (org defaults)
@@ -83,7 +84,7 @@ export namespace Config {
     // 6) Inline config (OPENCODE_CONFIG_CONTENT)
     // Managed config directory is enterprise-only and always overrides everything above.
     let result: Info = {}
-    for (const [key, value] of Object.entries(auth)) {
+    for (const [key, value] of Object.entries(entries)) {
       if (value.type === "wellknown") {
         const url = key.replace(/\/+$/, "")
         process.env[value.key] = value.token
@@ -172,13 +173,10 @@ export namespace Config {
       log.debug("loaded custom config from OPENCODE_CONFIG_CONTENT")
     }
 
-    const active = Account.active()
+    const active = await Account.active()
     if (active?.active_org_id) {
       try {
-        const [config, token] = await Promise.all([
-          Account.config(active.id, active.active_org_id),
-          Account.token(active.id),
-        ])
+        const [config, token] = await Promise.all([Account.config(active.id, active.active_org_id), Account.token(active.id)])
         if (token) {
           process.env["OPENCODE_CONSOLE_TOKEN"] = token
           Env.set("OPENCODE_CONSOLE_TOKEN", token)

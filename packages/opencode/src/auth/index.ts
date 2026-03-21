@@ -1,13 +1,10 @@
-import { Effect } from "effect"
 import z from "zod"
-import { runtime } from "@/effect/runtime"
-import * as S from "./effect"
+import { run } from "@/effect/run"
+import { lazy } from "@/util/lazy"
 
 export { OAUTH_DUMMY_KEY } from "./effect"
 
-function runPromise<A>(f: (service: S.Auth.Interface) => Effect.Effect<A, S.AuthError>) {
-  return runtime.runPromise(S.Auth.Service.use(f))
-}
+const svc = lazy(() => import("./effect").then((m) => m.Auth.Service))
 
 export namespace Auth {
   export const Oauth = z
@@ -40,18 +37,18 @@ export namespace Auth {
   export type Info = z.infer<typeof Info>
 
   export async function get(providerID: string) {
-    return runPromise((service) => service.get(providerID))
+    return run((await svc()).use((s) => s.get(providerID)))
   }
 
   export async function all(): Promise<Record<string, Info>> {
-    return runPromise((service) => service.all())
+    return run((await svc()).use((s) => s.all()))
   }
 
   export async function set(key: string, info: Info) {
-    return runPromise((service) => service.set(key, info))
+    return run((await svc()).use((s) => s.set(key, info)))
   }
 
   export async function remove(key: string) {
-    return runPromise((service) => service.remove(key))
+    return run((await svc()).use((s) => s.remove(key)))
   }
 }
